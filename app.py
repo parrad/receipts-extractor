@@ -1,7 +1,7 @@
 """
 Streamlit web app that connects to the user's Gmail, finds grocery
-receipts within a user‑selected date range, parses them with rule‑based
-logic (currently Hemköp‑style layout), and lets the user download the
+receipts within a user-selected date range, parses them with rule-based
+logic (currently Hemköp-style layout), and lets the user download the
 results as an Excel file.
 """
 
@@ -96,78 +96,86 @@ def parse_hemkop(text: str) -> Tuple[Dict, List[Dict]]:
     lines = [line.strip() for line in normalize(text).splitlines() if line.strip()]
     header: Dict = {"store": None, "date": None, "total": None, "items_count": None}
     items: List[Dict] = []
+    parsing_items = True
 
     for idx, line in enumerate(lines):
         low = line.lower()
-        # Stop parsing items at summary/payment lines
-        if low.startswith("totalt") or low.startswith("mottaget"):
-            break
 
         # store
         if not header["store"] and "hemköp" in low:
             header["store"] = line
-        # date
-        if not header["date"] and re.search(r"\d{4}-\d{2}-\d{2}", line):
-            header["date"] = re.search(r"\d{4}-\d{2}-\d{2}", line).group()
-        # total SEK
-        if "totalt" in low and "sek" in low:
-            m = re.search(r"([\d,.]+)\s*SEK", line)
+        # date (allow time after date)
+        if not header["date"]:
+            m = re.search(r"\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}:\d{2})?", line)
+            if m:
+                header["date"] = m.group()
+        # total SEK (allow extra spaces)
+        if not header["total"] and "totalt" in low and "sek" in low:
+            m = re.search(r"totalt\s+([\d,.]+)\s*sek", low)
+            if not m:
+                m = re.search(r"([\d,.]+)\s*SEK", line, re.IGNORECASE)
             if m:
                 header["total"] = m.group(1)
         # items count
-        if "totalt" in low and "varor" in low:
+        if not header["items_count"]:
             m = re.search(r"totalt\s+(\d+)\s+varor", low)
             if m:
-                header["items_count"] = int(m.group(1))
+                header["items_count"] = m.group(1)
 
-        # 1. Weight-based item (previous line is name)
-        m = re.search(r"([\d,.]+)kg\*(\d+,\d{2})kr/kg\s+([\d,]+)", line)
-        if m and idx > 0:
-            qty, unit_p, total = m.groups()
-            items.append(
-                {
-                    "item": lines[idx - 1],
-                    "qty": qty,
-                    "uom": "KG",
-                    "unit_price": unit_p,
-                    "amount": total,
-                }
-            )
-            continue  # skip further processing for this line
+        # Stop parsing items at summary/payment lines
+        if low.startswith("totalt") or low.startswith("mottaget"):
+            parsing_items = False
 
-        # 2. Multi-quantity item: e.g. "MARIEKEX 200G         2st*10,95      21,90"
-        m = re.search(r"(.+?)\s+(\d+)([a-zA-Z]+)\*(\d+,\d{2})\s+([\d,]+)$", line)
-        if m:
-            name, qty, uom, unit_price, amount = m.groups()
-            items.append(
-                {
-                    "item": name.strip(),
-                    "qty": qty,
-                    "uom": uom.upper(),
-                    "unit_price": unit_price,
-                    "amount": amount,
-                }
-            )
-            continue
+        # Parse items only before summary/payment lines
+        if parsing_items:
+            # 1. Weight-based item (previous line is name)
+            m = re.search(r"([\d,.]+)kg\*(\d+,\d{2})kr/kg\s+([\d,]+)", line)
+            if m and idx > 0:
+                qty, unit_p, total = m.groups()
+                items.append(
+                    {
+                        "item": lines[idx - 1],
+                        "qty": qty,
+                        "uom": "KG",
+                        "unit_price": unit_p,
+                        "amount": total,
+                    }
+                )
+                continue  # skip further processing for this line
 
-        # 3. Simple line item PRICE at end (including discounts)
-        if re.match(r".+\s+-?\d{1,3},\d{2}$", line):
-            parts = re.split(r"\s{2,}", line)
-            if len(parts) >= 2:
-                name, price = parts[0], parts[-1]
-            else:
-                price = re.search(r"-?[\d,]+$", line).group()
-                name = line[: line.rfind(price)].strip()
-            items.append(
-                {
-                    "item": name,
-                    "qty": "1",
-                    "uom": "ST",
-                    "unit_price": price,
-                    "amount": price,
-                }
-            )
-            continue
+            # 2. Multi-quantity item: e.g. "MARIEKEX 200G         2st*10,95      21,90"
+            m = re.search(r"(.+?)\s+(\d+)([a-zA-Z]+)\*(\d+,\d{2})\s+([\d,]+)$", line)
+            if m:
+                name, qty, uom, unit_price, amount = m.groups()
+                items.append(
+                    {
+                        "item": name.strip(),
+                        "qty": qty,
+                        "uom": uom.upper(),
+                        "unit_price": unit_price,
+                        "amount": amount,
+                    }
+                )
+                continue
+
+            # 3. Simple line item PRICE at end (including discounts)
+            if re.match(r".+\s+-?\d{1,3},\d{2}$", line):
+                parts = re.split(r"\s{2,}", line)
+                if len(parts) >= 2:
+                    name, price = parts[0], parts[-1]
+                else:
+                    price = re.search(r"-?[\d,]+$", line).group()
+                    name = line[: line.rfind(price)].strip()
+                items.append(
+                    {
+                        "item": name,
+                        "qty": "1",
+                        "uom": "ST",
+                        "unit_price": price,
+                        "amount": price,
+                    }
+                )
+                continue
 
     return header, items
 
@@ -237,13 +245,13 @@ if st.button("Fetch receipts"):
         st.success(f"Parsed {len(hdrs)} receipt(s)")
         st.dataframe(df, use_container_width=True)
         # Excel download
-        # buffer = pd.ExcelWriter("receipts.xlsx", engine="openpyxl")
-        # df.to_excel(buffer, index=False, sheet_name="Receipts")
-        # buffer.close()
-        # with open("receipts.xlsx", "rb") as f:
-        #     st.download_button(
-        #         "Download Excel",
-        #         f,
-        #         file_name="receipts.xlsx",
-        #         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        #     )
+        buffer = pd.ExcelWriter("receipts.xlsx", engine="openpyxl")
+        df.to_excel(buffer, index=False, sheet_name="Receipts")
+        buffer.close()
+        with open("receipts.xlsx", "rb") as f:
+            st.download_button(
+                "Download Excel",
+                f,
+                file_name="receipts.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
