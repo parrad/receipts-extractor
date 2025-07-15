@@ -2,7 +2,7 @@ import re
 from typing import Dict, List, Tuple
 from utils import normalize
 
-def parse_hemkop(text: str) -> Tuple[Dict, List[Dict]]:
+def parse_receipt(text: str) -> Tuple[Dict, List[Dict]]:
     """Parse Hemköp receipt text into structured header and items."""
     lines = [line.strip() for line in normalize(text).splitlines() if line.strip()]
     header: Dict = {"store": None, "date": None, "total": None, "items_count": None}
@@ -79,8 +79,8 @@ def parse_hemkop(text: str) -> Tuple[Dict, List[Dict]]:
 
     return header, items
 
-def detect_and_parse(text: str):
-    """Detect store type and parse receipt text accordingly."""
+def detect_receipt(text: str):
+    """Detects if the receipt is from Hemköp."""
     if "hemköp" in text.lower():
-        return parse_hemkop(text)
+        return parse_receipt(text)
     return None, []

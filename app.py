@@ -10,7 +10,10 @@ st.set_page_config(
 )
 
 st.title("🧾 Swedish Grocery Receipt Extractor")
-st.caption("Rule-based email parser (Hemköp) - data download as Excel")
+st.caption("Rule-based email parser (Hemköp, SpiceOnWheels) - data download as Excel")
+
+store_options = ["Hemköp", "SpiceOnWheels"]
+selected_store = st.selectbox("Select store", store_options)
 
 col1, col2 = st.columns(2)
 with col1:
@@ -24,7 +27,7 @@ if start_date > end_date:
 
 if st.button("Fetch receipts"):
     gmail_service = get_gmail_service()
-    df, hdrs = receipts_between(gmail_service, start_date, end_date)
+    df, hdrs = receipts_between(gmail_service, start_date, end_date, selected_store)
     if df.empty:
         st.info("No receipts found in the given date range.")
     else:

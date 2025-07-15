@@ -1,14 +1,20 @@
 import base64
 import datetime as dt
 
-def gmail_query_ids(service, start: dt.date, end: dt.date):
+def gmail_query_ids(service, start: dt.date, end: dt.date, store):
     """Return message-IDs for receipts between start and end (inclusive)."""
     start_str = start.strftime("%Y/%m/%d")
     end_str = (end + dt.timedelta(days=1)).strftime("%Y/%m/%d")
-    query = (
-        f"after:{start_str} before:{end_str} "
-        f"(subject:(Här kommer ditt digitala kvitto) OR from:(hemkop@kund.hemkop.se))"
-    )
+    if store == "Hemköp":
+        query = (
+            f"after:{start_str} before:{end_str} "
+            f"(subject:(Här kommer ditt digitala kvitto) AND from:(hemkop@kund.hemkop.se))"
+        )
+    elif store == "SpiceOnWheels":
+        query = (
+            f"after:{start_str} before:{end_str} "
+            f"(subject:(Your order has been received!) AND from:(infomalmo@spiceonwheels.se))"
+        )
     results = service.users().messages().list(userId="me", q=query).execute()
     return [m["id"] for m in results.get("messages", [])]
 
