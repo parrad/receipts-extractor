@@ -12,7 +12,7 @@ st.set_page_config(
 st.title("🧾 Swedish Grocery Receipt Extractor")
 st.caption("Rule-based email parser (Hemköp, SpiceOnWheels) - data download as Excel")
 
-store_options = ["All", "Hemköp", "SpiceOnWheels"]
+store_options = ["Hemköp", "SpiceOnWheels"]
 selected_store = st.selectbox("Select store", store_options)
 
 col1, col2 = st.columns(2)
